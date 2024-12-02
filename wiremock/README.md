@@ -1,0 +1,1 @@
+open browser and access the wiremock ui at http://localhost:8080/__admin/webapp/mappings

@@ -1,0 +1,56 @@
+version: "3.4"
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    # ports:
+    #  - 8080:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    restart: unless-stopped
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    user: root
+    ports:
+      - 9090:9090
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+    volumes:
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./prometheus-db:/prometheus
+    restart: unless-stopped
+    depends_on:
+      - cadvisor
+      - node-exporter
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node-exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.ignored-mount-points
+      - ^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)
+    # ports:
+    #  - 9100:9100
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - 4000:3000
+    volumes:
+      - grafana-db:/var/lib/grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+volumes:
+  grafana-db: null
+  prometheus-db: null
+networks: {}

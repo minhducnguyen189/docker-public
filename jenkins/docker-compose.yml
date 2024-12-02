@@ -1,0 +1,21 @@
+version: '3.7'
+
+services:
+  jenkins:
+    #using image from DockerHub
+    image: jenkins/jenkins
+    #enable privileged mode
+    privileged: true
+    #privileged mode with root user
+    user: root
+    ports:
+    - 8081:8080
+    - 50000:50000
+    container_name: jenkins
+    volumes:
+    - ./jenkins:/var/jenkins_home
+    - ./docker:/usr/local/bin/docker
+
+volumes:
+  jenkins:
+  docker:

@@ -1,0 +1,67 @@
+version: '3.4'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    restart: always
+    ports:
+      - "2181:2181"
+    volumes: 
+      - ./zookeeper/data:/var/lib/zookeeper/data
+      - ./zookeeper/log:/var/lib/zookeeper/log
+      - ./zookeeper:/var/log/zookeeper
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper:2888:3888
+      KAFKA_JMX_PORT: 19000
+      KAFKA_JMX_HOSTNAME: kafka
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    restart: always
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+      - "19000:19000"
+    volumes:
+      - ./kafka/data:/var/lib/kafka/data
+      - ./kafka:/var/log/kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_LISTENERS: INSIDE://:19092,OUTSIDE://:9092
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:19092,OUTSIDE://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"  
+      KAFKA_JMX_HOSTNAME: kafka   
+      KAFKA_JMX_PORT: 19000
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 30000000
+      KAFKA_PRODUCER_MAX_REQUEST_SIZE: 30000000
+      KAFKA_CONSUMER_MAX_PARTITION_FETCH_BYTES: 30000000
+      KAFKA_MESSAGE_MAX_BYTES: 30000000
+      KAFKA_JMX_OPTS: "-Djava.rmi.server.hostname=localhost
+      -Dcom.sun.management.jmxremote.local.only=false
+      -Dcom.sun.management.jmxremote.rmi.port=19000
+      -Dcom.sun.management.jmxremote.port=19000
+      -Dcom.sun.management.jmxremote.authenticate=false
+      -Dcom.sun.management.jmxremote.ssl=false"
+
+  kafka_manager:
+    restart: always
+    image: hlebalbau/kafka-manager:stable
+    ports:
+      - "9000:9000"
+    depends_on:
+      - zookeeper
+      - kafka
+    environment:
+      ZK_HOSTS: zookeeper:2181
+    command: -Dpidfile.path=/dev/null

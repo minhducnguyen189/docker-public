@@ -1,0 +1,36 @@
+version: '3.7'
+
+services:
+
+  mongo:
+    # use mongo image from dockerhub
+    image: mongo
+    # restart if service is failed
+    restart: always
+    container_name: mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - 27017:27017
+    # sync data from container to real machine
+    volumes:
+      - ./data:/data/db
+
+  mongo-express:
+    # use image from dockerhub
+    image: mongo-express
+    container_name: mongo-express
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_SERVER: mongodb
+    # restart if service is failed
+    restart: always
+    depends_on:
+      - mongo
+    ports:
+      - 8081:8081
+
+volumes:
+  data:

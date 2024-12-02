@@ -1,0 +1,17 @@
+{
+  "id" : "a112e066-718e-45b2-983d-302fcc438986",
+  "request" : {
+    "url" : "/v1/wiremock/tests",
+    "method" : "GET"
+  },
+  "response" : {
+    "status" : 200,
+    "body" : "Hello World!",
+    "headers" : {
+      "Content-Type" : "text/plain"
+    }
+  },
+  "uuid" : "a112e066-718e-45b2-983d-302fcc438986",
+  "persistent" : true,
+  "insertionIndex" : 0
+}

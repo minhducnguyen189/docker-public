@@ -1,0 +1,173 @@
+version: '3.7'
+
+services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - elk   
+
+  broker:
+    image: confluentinc/cp-kafka:7.3.2
+    container_name: broker
+    ports:
+    # To learn about configuring Kafka for access across networks see
+    # https://www.confluent.io/blog/kafka-client-cannot-connect-to-broker-on-aws-on-docker-etc/
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_HOST_NAME: broker
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_LISTENERS: INSIDE://:19092,OUTSIDE://:9092
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://broker:19092,OUTSIDE://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - elk  
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.16.2
+    volumes:
+      - type: bind
+        source: ./elasticsearch/config/elasticsearch.yml
+        target: /usr/share/elasticsearch/config/elasticsearch.yml
+        read_only: true
+      - type: volume
+        source: elasticsearch
+        target: /usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+      ELASTIC_PASSWORD: changeme
+      # Use single node discovery in order to disable production mode and avoid bootstrap checks
+      # see https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
+      discovery.type: single-node
+    depends_on:
+    - broker  
+    networks:
+      - elk
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.16.2
+    volumes:
+      - type: bind
+        source: ./logstash/config/logstash.yml
+        target: /usr/share/logstash/config/logstash.yml
+        read_only: true
+      - type: bind
+        source: ./logstash/pipeline
+        target: /usr/share/logstash/pipeline
+        read_only: true
+    ports:
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+      - "9600:9600"
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.16.2
+    volumes:
+      - type: bind
+        source: ./kibana/config/kibana.yml
+        target: /usr/share/kibana/config/kibana.yml
+        read_only: true
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+  
+  storage:
+    image: openzipkin/zipkin-mysql
+    container_name: storage
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      - MYSQL_ROOT_PASSWORD=zipkin
+      - MYSQL_DATABASE=zipkin
+      - MYSQL_USER=zipkin
+      - MYSQL_PASSWORD=zipkin
+    # Uncomment to expose the storage port for testing
+    # ports:
+    #   - 3306:3306
+    volumes:
+    - ./mysql-data:/var/lib/mysql:rw
+    networks:
+      - elk
+
+  # The zipkin process services the UI, and also exposes a POST endpoint that
+  # instrumentation can send trace data to. Scribe is disabled by default.
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    # Environment settings are defined here https://github.com/openzipkin/zipkin/blob/master/zipkin-server/README.md#environment-variables
+    environment:
+      - STORAGE_TYPE=mysql
+      # Point the zipkin at the storage backend
+      - MYSQL_HOST=storage
+      - MYSQL_USER=zipkin
+      - MYSQL_PASS=zipkin
+      - MYSQL_DB=zipkin
+      - KAFKA_BOOTSTRAP_SERVERS=broker:19092
+      # Uncomment to enable scribe
+      # - SCRIBE_ENABLED=true
+      # Uncomment to enable self-tracing
+      # - SELF_TRACING_ENABLED=true
+      # Uncomment to enable debug logging
+      # - JAVA_OPTS=-Dlogging.level.zipkin2=DEBUG
+    ports:
+      # Port used for the Zipkin UI and HTTP Api
+      - 9411:9411
+      # Uncomment if you set SCRIBE_ENABLED=true
+      # - 9410:9410
+    depends_on:
+      - storage
+    networks:
+      - elk  
+
+  # Adds a cron to process spans since midnight every hour, and all spans each day
+  # This data is served by http://192.168.99.100:8080/dependency
+  #
+  # For more details, see https://github.com/openzipkin/docker-zipkin-dependencies
+  dependencies:
+    image: openzipkin/zipkin-dependencies
+    container_name: dependencies
+    entrypoint: crond -f
+    environment:
+      - STORAGE_TYPE=mysql
+      - MYSQL_HOST=storage
+      # Add the baked-in username and password for the zipkin-mysql image
+      - MYSQL_USER=zipkin
+      - MYSQL_PASS=zipkin
+      # Uncomment to see dependency processing logs
+      # - ZIPKIN_LOG_LEVEL=DEBUG
+      # Uncomment to adjust memory used by the dependencies job
+      # - JAVA_OPTS=-verbose:gc -Xms1G -Xmx1G
+    depends_on:
+      - storage
+    networks:
+      - elk        
+
+networks:
+  elk:
+    driver: bridge
+
+volumes:
+  elasticsearch:
+  mysql-data:

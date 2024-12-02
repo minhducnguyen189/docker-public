@@ -1,0 +1,16 @@
+version: '3.3'
+
+services:
+  nginx:
+    container_name: nginx-reverse-proxy
+    image: nginx:latest
+    ports:
+    - "80:80"
+    networks:
+    - bridge
+    volumes:
+    - "./nginx-reverse-proxy/server.conf:/etc/nginx/conf.d/server.conf"
+
+networks:
+  bridge:
+    driver: bridge

@@ -1,0 +1,21 @@
+services:
+  mysql_db_container:
+    # using latest image mysql from dockerHub
+    image: mysql:latest
+    # container name: check by command: docker container ls
+    container_name: mysql_container
+    command: --default-authentication-plugin=mysql_native_password
+    # default username is root
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: sys
+    # map port between real machine and container    
+    ports:
+    - 3306:3306
+    # map data between real machine and container
+    # which will help us avoid lost data when container is down
+    volumes:
+    - ./mysql-data:/var/lib/mysql:rw
+
+volumes:
+  mysql-data:
